@@ -71,7 +71,7 @@
 ## 🚀 Installation & Getting Started
 
 ### Option 1: Download Pre-built Release (Recommended)
-1. Download the latest `LockIn.zip` from the **[Releases](https://github.com/)** tab.
+1. Download the latest `LockIn.zip` from the **[Releases](https://github.com/Dmesss/LockIn/releases)** tab.
 2. Unzip and drag `LockIn.app` into your `/Applications` folder.
 3. Open `LockIn`!
    *(To have it launch automatically on login, add `LockIn` under macOS **System Settings > General > Login Items**).*
@@ -86,7 +86,7 @@
 
 ```zsh
 # 1. Clone the repository
-git clone https://github.com/your-username/LockIn.git
+git clone https://github.com/Dmesss/LockIn.git
 cd LockIn
 
 # 2. Build and bundle the app
