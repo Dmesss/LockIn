@@ -1,4 +1,14 @@
-# 🔒 LockIn – MacBook Notch Dynamic Island & Desktop Pet
+<p align="center">
+  <img src="Resources/AppIcon.png" width="120" height="120" alt="LockIn Logo" style="border-radius: 26px;">
+</p>
+
+<h1 align="center">🔒 LockIn</h1>
+<p align="center"><b>MacBook Notch Dynamic Island & Desktop Companion</b></p>
+<p align="center">
+  <img src="https://img.shields.io/badge/Platform-macOS%2014.0%2B-black?style=flat-square&logo=apple" alt="macOS">
+  <img src="https://img.shields.io/badge/Swift-5.9%2B-orange?style=flat-square&logo=swift" alt="Swift">
+  <img src="https://img.shields.io/badge/License-MIT-blue?style=flat-square" alt="MIT License">
+</p>
 
 > Transform your MacBook notch into a functional **Dynamic Island** with a live **Spotify player**, **week calendar**, **real-time weather**, **quick mirror**, and an adorable **interactive pixel duck desktop companion**!
 

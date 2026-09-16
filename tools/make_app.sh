@@ -18,6 +18,10 @@ mkdir -p "${MACOS_DIR}" "${RESOURCES_DIR}"
 
 cp ".build/release/${APP_NAME}" "${MACOS_DIR}/${APP_NAME}"
 
+if [ -f "Resources/AppIcon.icns" ]; then
+    cp "Resources/AppIcon.icns" "${RESOURCES_DIR}/AppIcon.icns"
+fi
+
 cat << 'PLIST' > "${CONTENTS_DIR}/Info.plist"
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -31,6 +35,8 @@ cat << 'PLIST' > "${CONTENTS_DIR}/Info.plist"
     <string>LockIn</string>
     <key>CFBundleDisplayName</key>
     <string>LockIn</string>
+    <key>CFBundleIconFile</key>
+    <string>AppIcon</string>
     <key>CFBundlePackageType</key>
     <string>APPL</string>
     <key>CFBundleShortVersionString</key>
