@@ -1,0 +1,17 @@
+# Swift Package Manager & Build artifacts
+.build/
+dist/
+DerivedData/
+
+# Xcode user state
+*.xcodeproj
+*.xcworkspace
+*.xcuserstate
+
+# macOS system files
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Internal helper scripts
+tools/*.py
