@@ -214,6 +214,49 @@ public class MenuBarController {
         atmosParent.submenu = atmosSub
         menu.addItem(atmosParent)
 
+        // ⛅ Weather Location Submenu
+        let weatherSub = NSMenu()
+        let currentCity = DuckState.shared.weatherCity
+        let isOverride = DuckState.shared.weatherCityOverride != nil
+
+        let curItem = NSMenuItem(title: "Current: \(currentCity)", action: nil, keyEquivalent: "")
+        curItem.isEnabled = false
+        weatherSub.addItem(curItem)
+        weatherSub.addItem(NSMenuItem.separator())
+
+        let alamItem = NSMenuItem(title: "📍 Alam Sutera (Tangerang)", action: #selector(setLocAlamSutera), keyEquivalent: "")
+        alamItem.target = self
+        alamItem.state = (DuckState.shared.weatherCityOverride == "Alam Sutera") ? .on : .off
+        weatherSub.addItem(alamItem)
+
+        let tangItem = NSMenuItem(title: "📍 Tangerang City", action: #selector(setLocTangerang), keyEquivalent: "")
+        tangItem.target = self
+        tangItem.state = (DuckState.shared.weatherCityOverride == "Tangerang") ? .on : .off
+        weatherSub.addItem(tangItem)
+
+        let jktItem = NSMenuItem(title: "📍 Jakarta", action: #selector(setLocJakarta), keyEquivalent: "")
+        jktItem.target = self
+        jktItem.state = (DuckState.shared.weatherCityOverride == "Jakarta") ? .on : .off
+        weatherSub.addItem(jktItem)
+
+        let customItem = NSMenuItem(title: "🔍 Custom City / Search...", action: #selector(promptCustomCity), keyEquivalent: "")
+        customItem.target = self
+        let isPreset = ["Alam Sutera", "Tangerang", "Jakarta"].contains(DuckState.shared.weatherCityOverride ?? "")
+        if isOverride && !isPreset {
+            customItem.state = .on
+        }
+        weatherSub.addItem(customItem)
+
+        weatherSub.addItem(NSMenuItem.separator())
+        let autoLocItem = NSMenuItem(title: "🌐 Auto Detect (IP Geolocation)", action: #selector(setLocAuto), keyEquivalent: "")
+        autoLocItem.target = self
+        autoLocItem.state = (!isOverride) ? NSControl.StateValue.on : NSControl.StateValue.off
+        weatherSub.addItem(autoLocItem)
+
+        let weatherParent = NSMenuItem(title: "Weather Location (\(currentCity))", action: nil, keyEquivalent: "")
+        weatherParent.submenu = weatherSub
+        menu.addItem(weatherParent)
+
         menu.addItem(NSMenuItem.separator())
 
         // 🎩 Wardrobe Submenu
@@ -363,6 +406,55 @@ public class MenuBarController {
     @objc private func toggleStay() {
         DuckState.shared.stayWherePut.toggle()
         updateMenu()
+    }
+
+    // Weather Location selectors
+    @objc private func setLocAlamSutera() {
+        WeatherService.shared.setLocationOverride(city: "Alam Sutera", lat: -6.2238, lon: 106.6508)
+        updateMenu()
+    }
+
+    @objc private func setLocTangerang() {
+        WeatherService.shared.setLocationOverride(city: "Tangerang", lat: -6.1783, lon: 106.6300)
+        updateMenu()
+    }
+
+    @objc private func setLocJakarta() {
+        WeatherService.shared.setLocationOverride(city: "Jakarta", lat: -6.2088, lon: 106.8456)
+        updateMenu()
+    }
+
+    @objc private func setLocAuto() {
+        WeatherService.shared.clearLocationOverride()
+        updateMenu()
+    }
+
+    @objc private func promptCustomCity() {
+        let alert = NSAlert()
+        alert.messageText = "Set Weather Location"
+        alert.informativeText = "Enter any city or region (e.g. Alam Sutera, Bandung, Bali, Tokyo):"
+        alert.addButton(withTitle: "Search & Set")
+        alert.addButton(withTitle: "Cancel")
+
+        let input = NSTextField(frame: NSRect(x: 0, y: 0, width: 240, height: 24))
+        input.placeholderString = "City name"
+        alert.accessoryView = input
+
+        let res = alert.runModal()
+        if res == .alertFirstButtonReturn {
+            let text = input.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !text.isEmpty {
+                WeatherService.shared.searchAndSetCity(text) { [weak self] success in
+                    if !success {
+                        let errAlert = NSAlert()
+                        errAlert.messageText = "Location Not Found"
+                        errAlert.informativeText = "Could not find coordinates for '" + text + "'. Please try another city name."
+                        errAlert.runModal()
+                    }
+                    self?.updateMenu()
+                }
+            }
+        }
     }
 
     // Atmosphere selectors

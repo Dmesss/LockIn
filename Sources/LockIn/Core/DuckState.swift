@@ -86,7 +86,45 @@ public class DuckState {
     public var weatherTemp: Double = 28.0
     public var weatherFeelsLike: Double = 30.0
     public var weatherHumidity: Int = 65
-    public var weatherCity: String = "Tangerang"
+    public var weatherCity: String = "Alam Sutera"
+
+    // Weather location override
+    public var weatherCityOverride: String? {
+        get { UserDefaults.standard.string(forKey: "DuckPet_WeatherCityOverride") }
+        set {
+            if let val = newValue, !val.isEmpty {
+                UserDefaults.standard.set(val, forKey: "DuckPet_WeatherCityOverride")
+            } else {
+                UserDefaults.standard.removeObject(forKey: "DuckPet_WeatherCityOverride")
+            }
+        }
+    }
+    public var weatherLatOverride: Double? {
+        get {
+            let v = UserDefaults.standard.double(forKey: "DuckPet_WeatherLatOverride")
+            return v != 0 ? v : nil
+        }
+        set {
+            if let val = newValue {
+                UserDefaults.standard.set(val, forKey: "DuckPet_WeatherLatOverride")
+            } else {
+                UserDefaults.standard.removeObject(forKey: "DuckPet_WeatherLatOverride")
+            }
+        }
+    }
+    public var weatherLonOverride: Double? {
+        get {
+            let v = UserDefaults.standard.double(forKey: "DuckPet_WeatherLonOverride")
+            return v != 0 ? v : nil
+        }
+        set {
+            if let val = newValue {
+                UserDefaults.standard.set(val, forKey: "DuckPet_WeatherLonOverride")
+            } else {
+                UserDefaults.standard.removeObject(forKey: "DuckPet_WeatherLonOverride")
+            }
+        }
+    }
     public var weatherCondition: String = "Partly Cloudy"
     public var weatherIcon: String = "cloud.sun.fill"
     public var isRaining: Bool = false {

@@ -6,9 +6,9 @@ public class WeatherService {
 
     private var timer: Timer?
     private var lastFetchTime: Date?
-    private var cachedLat: Double = -6.178
-    private var cachedLon: Double = 106.630
-    private var cachedCity: String = "Tangerang"
+    private var cachedLat: Double = -6.2238
+    private var cachedLon: Double = 106.6508
+    private var cachedCity: String = "Alam Sutera"
 
     private init() {}
 
@@ -19,6 +19,46 @@ public class WeatherService {
         timer = Timer.scheduledTimer(withTimeInterval: 1200.0, repeats: true) { [weak self] _ in
             self?.fetchWeather()
         }
+    }
+
+    public func setLocationOverride(city: String, lat: Double, lon: Double) {
+        DuckState.shared.weatherCityOverride = city
+        DuckState.shared.weatherLatOverride = lat
+        DuckState.shared.weatherLonOverride = lon
+        fetchWeather()
+    }
+
+    public func clearLocationOverride() {
+        DuckState.shared.weatherCityOverride = nil
+        DuckState.shared.weatherLatOverride = nil
+        DuckState.shared.weatherLonOverride = nil
+        fetchWeather()
+    }
+
+    public func searchAndSetCity(_ query: String, completion: @escaping (Bool) -> Void) {
+        let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let encoded = trimmed.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed),
+              let url = URL(string: "https://geocoding-api.open-meteo.com/v1/search?name=\(encoded)&count=1&language=en&format=json") else {
+            completion(false)
+            return
+        }
+
+        URLSession.shared.dataTask(with: url) { [weak self] data, _, error in
+            guard let self = self, let data = data, error == nil,
+                  let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+                  let results = json["results"] as? [[String: Any]],
+                  let first = results.first,
+                  let lat = first["latitude"] as? Double,
+                  let lon = first["longitude"] as? Double else {
+                DispatchQueue.main.async { completion(false) }
+                return
+            }
+            let name = first["name"] as? String ?? trimmed
+            DispatchQueue.main.async {
+                self.setLocationOverride(city: name, lat: lat, lon: lon)
+                completion(true)
+            }
+        }.resume()
     }
 
     public func fetchWeather() {
@@ -62,9 +102,8 @@ public class WeatherService {
                     DuckState.shared.isNight = isNight
                     DuckState.shared.isHotSunny = (isHot && isDay)
 
-// Weather mood handled dynamically by DuckState.moodDesc
-
                     DynamicIslandWindow.shared?.contentView?.needsDisplay = true
+                    MenuBarController.shared.updateMenu()
                     SyncServer.shared.broadcastState()
                 }
             }.resume()
@@ -72,6 +111,13 @@ public class WeatherService {
     }
 
     private func fetchLocation(completion: @escaping (Double, Double, String) -> Void) {
+        if let city = DuckState.shared.weatherCityOverride,
+           let lat = DuckState.shared.weatherLatOverride,
+           let lon = DuckState.shared.weatherLonOverride {
+            completion(lat, lon, city)
+            return
+        }
+
         guard let url = URL(string: "https://ipwho.is/") else {
             completion(cachedLat, cachedLon, cachedCity)
             return
