@@ -1,24 +1,148 @@
 import Foundation
 import AppKit
+import CoreLocation
 
-public class WeatherService {
+public class WeatherService: NSObject, CLLocationManagerDelegate {
     public static let shared = WeatherService()
 
-    private var timer: Timer?
-    private var lastFetchTime: Date?
-    private var cachedLat: Double = -6.2238
-    private var cachedLon: Double = 106.6508
-    private var cachedCity: String = "Alam Sutera"
+    private let locationManager = CLLocationManager()
+    private let geocoder = CLGeocoder()
+    private var pollTimer: Timer?
 
-    private init() {}
+    private var currentLat: Double = -6.2238
+    private var currentLon: Double = 106.6508
+    private var currentCity: String = "Alam Sutera"
+    private var hasResolvedLocation: Bool = false
+
+    private override init() {
+        super.init()
+        locationManager.delegate = self
+        locationManager.desiredAccuracy = kCLLocationAccuracyHundredMeters
+        locationManager.distanceFilter = 500.0 // updates every 500m
+    }
 
     public func start() {
+        requestLiveLocation()
         fetchWeather()
-        timer?.invalidate()
-        // Poll every 20 minutes (1200 seconds)
-        timer = Timer.scheduledTimer(withTimeInterval: 1200.0, repeats: true) { [weak self] _ in
+
+        pollTimer?.invalidate()
+        // Refresh every 15 minutes
+        pollTimer = Timer.scheduledTimer(withTimeInterval: 900.0, repeats: true) { [weak self] _ in
+            self?.requestLiveLocation()
             self?.fetchWeather()
         }
+    }
+
+    public func requestLiveLocation() {
+        // If manual override is explicitly set by user, use that
+        if let city = DuckState.shared.weatherCityOverride,
+           let lat = DuckState.shared.weatherLatOverride,
+           let lon = DuckState.shared.weatherLonOverride {
+            self.currentLat = lat
+            self.currentLon = lon
+            self.currentCity = city
+            fetchWeather()
+            return
+        }
+
+        let status = locationManager.authorizationStatus
+        if status == .notDetermined {
+            locationManager.requestAlwaysAuthorization()
+            locationManager.startUpdatingLocation()
+        } else if status == .authorizedAlways {
+            locationManager.startUpdatingLocation()
+        }
+    }
+
+    // MARK: - CLLocationManagerDelegate
+    public func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
+        let status = manager.authorizationStatus
+        if status == .authorizedAlways {
+            manager.startUpdatingLocation()
+        }
+    }
+
+    public func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
+        guard let location = locations.last else { return }
+
+        // Skip GPS updates if user manually set an override
+        if DuckState.shared.weatherCityOverride != nil { return }
+
+        let lat = location.coordinate.latitude
+        let lon = location.coordinate.longitude
+
+        self.currentLat = lat
+        self.currentLon = lon
+
+        geocoder.cancelGeocode()
+        geocoder.reverseGeocodeLocation(location) { [weak self] placemarks, error in
+            guard let self = self else { return }
+            if let p = placemarks?.first {
+                var resolved = p.locality ?? p.subLocality ?? p.administrativeArea ?? "Local"
+                if p.subLocality?.lowercased().contains("pinang") == true ||
+                   p.name?.lowercased().contains("alam sutera") == true ||
+                   p.thoroughfare?.lowercased().contains("sutera") == true {
+                    resolved = "Alam Sutera"
+                }
+                self.currentCity = resolved
+                self.hasResolvedLocation = true
+            }
+            self.fetchWeatherForCoordinates(lat: lat, lon: lon, city: self.currentCity)
+        }
+    }
+
+    public func locationManager(_ manager: CLLocationManager, didFailWithError error: Error) {
+        print("[WeatherService] Location error: \(error.localizedDescription)")
+    }
+
+    public func fetchWeather() {
+        if let city = DuckState.shared.weatherCityOverride,
+           let lat = DuckState.shared.weatherLatOverride,
+           let lon = DuckState.shared.weatherLonOverride {
+            fetchWeatherForCoordinates(lat: lat, lon: lon, city: city)
+        } else {
+            fetchWeatherForCoordinates(lat: currentLat, lon: currentLon, city: currentCity)
+        }
+    }
+
+    private func fetchWeatherForCoordinates(lat: Double, lon: Double, city: String) {
+        let urlStr = "https://api.open-meteo.com/v1/forecast?latitude=\(lat)&longitude=\(lon)&current=temperature_2m,relative_humidity_2m,apparent_temperature,weather_code,is_day,precipitation"
+        guard let url = URL(string: urlStr) else { return }
+
+        URLSession.shared.dataTask(with: url) { data, _, error in
+            guard let data = data, error == nil,
+                  let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+                  let current = json["current"] as? [String: Any] else {
+                return
+            }
+
+            let temp = current["temperature_2m"] as? Double ?? 28.0
+            let humidity = current["relative_humidity_2m"] as? Int ?? 65
+            let feelsLike = current["apparent_temperature"] as? Double ?? temp
+            let code = current["weather_code"] as? Int ?? 1
+            let isDay = (current["is_day"] as? Int ?? 1) == 1
+            let precip = current["precipitation"] as? Double ?? 0.0
+
+            let (cond, icon, isRain) = self.parseWMO(code: code, isDay: isDay, precip: precip)
+            let isHot = temp >= 32.0
+            let isNight = !isDay
+
+            DispatchQueue.main.async {
+                DuckState.shared.weatherTemp = temp
+                DuckState.shared.weatherFeelsLike = feelsLike
+                DuckState.shared.weatherHumidity = humidity
+                DuckState.shared.weatherCity = city
+                DuckState.shared.weatherCondition = cond
+                DuckState.shared.weatherIcon = icon
+                DuckState.shared.isRaining = isRain
+                DuckState.shared.isNight = isNight
+                DuckState.shared.isHotSunny = (isHot && isDay)
+
+                DynamicIslandWindow.shared?.contentView?.needsDisplay = true
+                MenuBarController.shared.updateMenu()
+                SyncServer.shared.broadcastState()
+            }
+        }.resume()
     }
 
     public func setLocationOverride(city: String, lat: Double, lon: Double) {
@@ -32,6 +156,7 @@ public class WeatherService {
         DuckState.shared.weatherCityOverride = nil
         DuckState.shared.weatherLatOverride = nil
         DuckState.shared.weatherLonOverride = nil
+        requestLiveLocation()
         fetchWeather()
     }
 
@@ -57,82 +182,6 @@ public class WeatherService {
             DispatchQueue.main.async {
                 self.setLocationOverride(city: name, lat: lat, lon: lon)
                 completion(true)
-            }
-        }.resume()
-    }
-
-    public func fetchWeather() {
-        // Step 1: Update Location if needed or use cached
-        fetchLocation { [weak self] lat, lon, city in
-            guard let self = self else { return }
-            self.cachedLat = lat
-            self.cachedLon = lon
-            self.cachedCity = city
-
-            // Step 2: Fetch Weather from Open-Meteo
-            let urlStr = "https://api.open-meteo.com/v1/forecast?latitude=\(lat)&longitude=\(lon)&current=temperature_2m,relative_humidity_2m,apparent_temperature,weather_code,is_day,precipitation"
-            guard let url = URL(string: urlStr) else { return }
-
-            URLSession.shared.dataTask(with: url) { data, _, error in
-                guard let data = data, error == nil,
-                      let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-                      let current = json["current"] as? [String: Any] else {
-                    return
-                }
-
-                let temp = current["temperature_2m"] as? Double ?? 28.0
-                let humidity = current["relative_humidity_2m"] as? Int ?? 65
-                let feelsLike = current["apparent_temperature"] as? Double ?? temp
-                let code = current["weather_code"] as? Int ?? 1
-                let isDay = (current["is_day"] as? Int ?? 1) == 1
-                let precip = current["precipitation"] as? Double ?? 0.0
-
-                let (cond, icon, isRain) = self.parseWMO(code: code, isDay: isDay, precip: precip)
-                let isHot = temp >= 32.0
-                let isNight = !isDay
-
-                DispatchQueue.main.async {
-                    DuckState.shared.weatherTemp = temp
-                    DuckState.shared.weatherFeelsLike = feelsLike
-                    DuckState.shared.weatherHumidity = humidity
-                    DuckState.shared.weatherCity = city
-                    DuckState.shared.weatherCondition = cond
-                    DuckState.shared.weatherIcon = icon
-                    DuckState.shared.isRaining = isRain
-                    DuckState.shared.isNight = isNight
-                    DuckState.shared.isHotSunny = (isHot && isDay)
-
-                    DynamicIslandWindow.shared?.contentView?.needsDisplay = true
-                    MenuBarController.shared.updateMenu()
-                    SyncServer.shared.broadcastState()
-                }
-            }.resume()
-        }
-    }
-
-    private func fetchLocation(completion: @escaping (Double, Double, String) -> Void) {
-        if let city = DuckState.shared.weatherCityOverride,
-           let lat = DuckState.shared.weatherLatOverride,
-           let lon = DuckState.shared.weatherLonOverride {
-            completion(lat, lon, city)
-            return
-        }
-
-        guard let url = URL(string: "https://ipwho.is/") else {
-            completion(cachedLat, cachedLon, cachedCity)
-            return
-        }
-
-        URLSession.shared.dataTask(with: url) { [weak self] data, _, error in
-            guard let self = self else { return }
-            if let data = data, error == nil,
-               let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-               let lat = json["latitude"] as? Double,
-               let lon = json["longitude"] as? Double,
-               let city = json["city"] as? String {
-                completion(lat, lon, city)
-            } else {
-                completion(self.cachedLat, self.cachedLon, self.cachedCity)
             }
         }.resume()
     }

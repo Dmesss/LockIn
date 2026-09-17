@@ -49,6 +49,12 @@ cat << 'PLIST' > "${CONTENTS_DIR}/Info.plist"
     <true/>
     <key>NSCameraUsageDescription</key>
     <string>Camera access is needed for the Quick Mirror feature in the Notch Dynamic Island.</string>
+    <key>NSLocationUsageDescription</key>
+    <string>LockIn uses your real-time location to display accurate local weather on your Dynamic Island.</string>
+    <key>NSLocationWhenInUseUsageDescription</key>
+    <string>LockIn uses your real-time location to display accurate local weather on your Dynamic Island.</string>
+    <key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+    <string>LockIn uses your real-time location to display accurate local weather on your Dynamic Island.</string>
 </dict>
 </plist>
 PLIST

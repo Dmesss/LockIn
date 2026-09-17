@@ -224,22 +224,32 @@ public class MenuBarController {
         weatherSub.addItem(curItem)
         weatherSub.addItem(NSMenuItem.separator())
 
-        let alamItem = NSMenuItem(title: "📍 Alam Sutera (Tangerang)", action: #selector(setLocAlamSutera), keyEquivalent: "")
+        let autoLocItem = NSMenuItem(title: "📍 Real-Time Location (GPS / Wi-Fi)", action: #selector(setLocAuto), keyEquivalent: "")
+        autoLocItem.target = self
+        autoLocItem.state = (!isOverride) ? NSControl.StateValue.on : NSControl.StateValue.off
+        weatherSub.addItem(autoLocItem)
+
+        weatherSub.addItem(NSMenuItem.separator())
+        let overrideHeader = NSMenuItem(title: "Manual Overrides:", action: nil, keyEquivalent: "")
+        overrideHeader.isEnabled = false
+        weatherSub.addItem(overrideHeader)
+
+        let alamItem = NSMenuItem(title: "Alam Sutera (Tangerang)", action: #selector(setLocAlamSutera), keyEquivalent: "")
         alamItem.target = self
         alamItem.state = (DuckState.shared.weatherCityOverride == "Alam Sutera") ? .on : .off
         weatherSub.addItem(alamItem)
 
-        let tangItem = NSMenuItem(title: "📍 Tangerang City", action: #selector(setLocTangerang), keyEquivalent: "")
+        let tangItem = NSMenuItem(title: "Tangerang City", action: #selector(setLocTangerang), keyEquivalent: "")
         tangItem.target = self
         tangItem.state = (DuckState.shared.weatherCityOverride == "Tangerang") ? .on : .off
         weatherSub.addItem(tangItem)
 
-        let jktItem = NSMenuItem(title: "📍 Jakarta", action: #selector(setLocJakarta), keyEquivalent: "")
+        let jktItem = NSMenuItem(title: "Jakarta", action: #selector(setLocJakarta), keyEquivalent: "")
         jktItem.target = self
         jktItem.state = (DuckState.shared.weatherCityOverride == "Jakarta") ? .on : .off
         weatherSub.addItem(jktItem)
 
-        let customItem = NSMenuItem(title: "🔍 Custom City / Search...", action: #selector(promptCustomCity), keyEquivalent: "")
+        let customItem = NSMenuItem(title: "Custom City / Search...", action: #selector(promptCustomCity), keyEquivalent: "")
         customItem.target = self
         let isPreset = ["Alam Sutera", "Tangerang", "Jakarta"].contains(DuckState.shared.weatherCityOverride ?? "")
         if isOverride && !isPreset {
@@ -247,13 +257,7 @@ public class MenuBarController {
         }
         weatherSub.addItem(customItem)
 
-        weatherSub.addItem(NSMenuItem.separator())
-        let autoLocItem = NSMenuItem(title: "🌐 Auto Detect (IP Geolocation)", action: #selector(setLocAuto), keyEquivalent: "")
-        autoLocItem.target = self
-        autoLocItem.state = (!isOverride) ? NSControl.StateValue.on : NSControl.StateValue.off
-        weatherSub.addItem(autoLocItem)
-
-        let weatherParent = NSMenuItem(title: "Weather Location (\(currentCity))", action: nil, keyEquivalent: "")
+        let weatherParent = NSMenuItem(title: "Weather: \(currentCity) (Live)", action: nil, keyEquivalent: "")
         weatherParent.submenu = weatherSub
         menu.addItem(weatherParent)
 
