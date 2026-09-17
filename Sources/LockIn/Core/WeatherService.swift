@@ -18,7 +18,7 @@ public class WeatherService: NSObject, CLLocationManagerDelegate {
         super.init()
         locationManager.delegate = self
         locationManager.desiredAccuracy = kCLLocationAccuracyHundredMeters
-        locationManager.distanceFilter = 500.0 // updates every 500m
+        locationManager.distanceFilter = 500.0 // updates when Mac moves >500m
     }
 
     public func start() {
@@ -34,17 +34,6 @@ public class WeatherService: NSObject, CLLocationManagerDelegate {
     }
 
     public func requestLiveLocation() {
-        // If manual override is explicitly set by user, use that
-        if let city = DuckState.shared.weatherCityOverride,
-           let lat = DuckState.shared.weatherLatOverride,
-           let lon = DuckState.shared.weatherLonOverride {
-            self.currentLat = lat
-            self.currentLon = lon
-            self.currentCity = city
-            fetchWeather()
-            return
-        }
-
         let status = locationManager.authorizationStatus
         if status == .notDetermined {
             locationManager.requestAlwaysAuthorization()
@@ -64,9 +53,6 @@ public class WeatherService: NSObject, CLLocationManagerDelegate {
 
     public func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
         guard let location = locations.last else { return }
-
-        // Skip GPS updates if user manually set an override
-        if DuckState.shared.weatherCityOverride != nil { return }
 
         let lat = location.coordinate.latitude
         let lon = location.coordinate.longitude
@@ -96,13 +82,7 @@ public class WeatherService: NSObject, CLLocationManagerDelegate {
     }
 
     public func fetchWeather() {
-        if let city = DuckState.shared.weatherCityOverride,
-           let lat = DuckState.shared.weatherLatOverride,
-           let lon = DuckState.shared.weatherLonOverride {
-            fetchWeatherForCoordinates(lat: lat, lon: lon, city: city)
-        } else {
-            fetchWeatherForCoordinates(lat: currentLat, lon: currentLon, city: currentCity)
-        }
+        fetchWeatherForCoordinates(lat: currentLat, lon: currentLon, city: currentCity)
     }
 
     private func fetchWeatherForCoordinates(lat: Double, lon: Double, city: String) {
@@ -141,47 +121,6 @@ public class WeatherService: NSObject, CLLocationManagerDelegate {
                 DynamicIslandWindow.shared?.contentView?.needsDisplay = true
                 MenuBarController.shared.updateMenu()
                 SyncServer.shared.broadcastState()
-            }
-        }.resume()
-    }
-
-    public func setLocationOverride(city: String, lat: Double, lon: Double) {
-        DuckState.shared.weatherCityOverride = city
-        DuckState.shared.weatherLatOverride = lat
-        DuckState.shared.weatherLonOverride = lon
-        fetchWeather()
-    }
-
-    public func clearLocationOverride() {
-        DuckState.shared.weatherCityOverride = nil
-        DuckState.shared.weatherLatOverride = nil
-        DuckState.shared.weatherLonOverride = nil
-        requestLiveLocation()
-        fetchWeather()
-    }
-
-    public func searchAndSetCity(_ query: String, completion: @escaping (Bool) -> Void) {
-        let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard let encoded = trimmed.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed),
-              let url = URL(string: "https://geocoding-api.open-meteo.com/v1/search?name=\(encoded)&count=1&language=en&format=json") else {
-            completion(false)
-            return
-        }
-
-        URLSession.shared.dataTask(with: url) { [weak self] data, _, error in
-            guard let self = self, let data = data, error == nil,
-                  let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-                  let results = json["results"] as? [[String: Any]],
-                  let first = results.first,
-                  let lat = first["latitude"] as? Double,
-                  let lon = first["longitude"] as? Double else {
-                DispatchQueue.main.async { completion(false) }
-                return
-            }
-            let name = first["name"] as? String ?? trimmed
-            DispatchQueue.main.async {
-                self.setLocationOverride(city: name, lat: lat, lon: lon)
-                completion(true)
             }
         }.resume()
     }
